@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中国地级行政区填图游戏</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --card-bg: #ffffff;
+            --primary: #e48d21;
+            --primary-light: #f5a623;
+            --primary-dark: #c97a1a;
+            --text: #1a1a2e;
+            --text-light: #666680;
+            --border: #e2e2e8;
+            --success: #27ae60;
+            --error: #e74c3c;
+            --shadow: 0 2px 12px rgba(0,0,0,0.06);
+            --radius: 10px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ===== Selection Screen ===== */
+        #selection-screen {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 50px 24px;
+        }
+        .title-area { text-align: center; margin-bottom: 44px; }
+        .title-area h1 { font-size: 30px; font-weight: 800; letter-spacing: 1px; margin-bottom: 10px; }
+        .title-area p { color: var(--text-light); font-size: 15px; line-height: 1.6; }
+        .national-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; max-width: 420px; margin: 0 auto 36px;
+            padding: 18px; font-size: 18px; font-weight: 700;
+            color: #fff; background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border: none; border-radius: 14px; cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 6px 20px rgba(228,141,33,0.35);
+        }
+        .national-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(228,141,33,0.45);
+        }
+        .national-btn:active { transform: translateY(0); }
+        .region-group { margin-bottom: 20px; }
+        .region-group h3 {
+            font-size: 13px; font-weight: 600; color: var(--text-light);
+            margin-bottom: 10px; padding-left: 12px;
+            border-left: 3px solid var(--primary);
+        }
+        .province-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .province-btn {
+            padding: 8px 18px; font-size: 14px;
+            border: 1px solid var(--border); border-radius: 8px;
+            background: var(--card-bg); cursor: pointer;
+            color: var(--text); transition: all 0.15s;
+        }
+        .province-btn:hover {
+            border-color: var(--primary); color: var(--primary);
+            box-shadow: var(--shadow); transform: translateY(-1px);
+        }
+
+        /* ===== Game Screen ===== */
+        #game-screen {
+            display: none; height: 100vh; flex-direction: column;
+        }
+        .game-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 16px; background: var(--card-bg);
+            border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .back-btn {
+            padding: 5px 12px; font-size: 13px;
+            border: 1px solid var(--border); border-radius: 6px;
+            background: var(--card-bg); cursor: pointer; color: var(--text);
+        }
+        .back-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .game-title { font-size: 14px; font-weight: 600; color: var(--text); }
+        .game-info { display: flex; gap: 16px; align-items: center; font-size: 13px; }
+        .timer {
+            font-family: "SF Mono", "Cascadia Code", "Courier New", monospace;
+            font-size: 20px; font-weight: 700; color: var(--primary); min-width: 56px; text-align: center;
+        }
+        .score { color: var(--text-light); white-space: nowrap; }
+        .score b { color: var(--text); font-weight: 700; }
+
+        .game-body { display: flex; flex: 1; overflow: hidden; }
+        .map-area { flex: 1; position: relative; background: #fafbfc; }
+        #map-container { width: 100%; height: 100%; }
+
+        .sidebar {
+            width: 300px; border-left: 1px solid var(--border);
+            background: var(--card-bg); display: flex; flex-direction: column; flex-shrink: 0;
+        }
+        .input-area { padding: 14px; border-bottom: 1px solid var(--border); }
+        .input-row { display: flex; gap: 8px; }
+        #city-input {
+            flex: 1; padding: 10px 14px; font-size: 15px;
+            border: 2px solid var(--border); border-radius: 8px; outline: none;
+            transition: border-color 0.2s;
+        }
+        #city-input:focus { border-color: var(--primary); }
+        .submit-btn {
+            padding: 10px 18px; font-size: 15px; font-weight: 600;
+            color: #fff; background: var(--primary);
+            border: none; border-radius: 8px; cursor: pointer;
+        }
+        .submit-btn:hover { background: var(--primary-dark); }
+
+        .sidebar-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px; font-size: 13px; color: var(--text-light);
+            border-bottom: 1px solid var(--border);
+        }
+        .giveup-btn {
+            padding: 3px 10px; font-size: 12px; color: var(--error);
+            background: none; border: 1px solid var(--error); border-radius: 4px;
+            cursor: pointer; opacity: 0.7; transition: opacity 0.2s;
+        }
+        .giveup-btn:hover { opacity: 1; }
+
+        .found-list { flex: 1; overflow-y: auto; padding: 8px 12px; }
+        .found-item {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; margin: 2px; font-size: 12px;
+            border-radius: 12px; background: #e8f5e9; color: #2e7d32;
+            animation: popIn 0.25s ease;
+        }
+        .found-item .dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            display: inline-block; flex-shrink: 0;
+        }
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.7); }
+            70% { transform: scale(1.05); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .hint-text { padding: 6px 14px; font-size: 11px; color: #aaa; text-align: center; }
+
+        /* ===== Toast ===== */
+        .toast {
+            position: fixed; top: 60px; left: 50%;
+            transform: translateX(-50%) translateY(-16px);
+            padding: 10px 24px; border-radius: 10px;
+            font-size: 14px; font-weight: 500; z-index: 1000;
+            opacity: 0; transition: all 0.25s ease; pointer-events: none;
+            backdrop-filter: blur(8px);
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.success { background: rgba(212,237,218,0.92); color: #155724; border: 1px solid #bee5c3; }
+        .toast.error { background: rgba(248,215,218,0.92); color: #721c24; border: 1px solid #f5c6cb; }
+
+        /* ===== Loading ===== */
+        .loading-overlay {
+            position: fixed; inset: 0;
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(4px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 2000;
+        }
+        .loading-spinner {
+            width: 44px; height: 44px;
+            border: 4px solid var(--border); border-top-color: var(--primary);
+            border-radius: 50%; animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { margin-top: 18px; font-size: 15px; color: var(--text-light); }
+        .loading-progress {
+            margin-top: 12px; width: 200px; height: 4px;
+            background: var(--border); border-radius: 2px; overflow: hidden;
+        }
+        .loading-bar {
+            height: 100%; width: 0%; background: var(--primary);
+            border-radius: 2px; transition: width 0.3s ease;
+        }
+
+        /* ===== Completion ===== */
+        .completion-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45); backdrop-filter: blur(6px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 3000; animation: fadeOverlay 0.3s ease;
+        }
+        @keyframes fadeOverlay { from { opacity: 0; } to { opacity: 1; } }
+        .completion-card {
+            background: #fff; border-radius: 20px; padding: 44px 48px;
+            text-align: center; max-width: 420px; width: 90%;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.18);
+            animation: slideUp 0.35s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .completion-card h2 { font-size: 26px; margin-bottom: 10px; color: var(--success); }
+        .completion-card p { font-size: 15px; color: var(--text-light); margin-bottom: 4px; }
+        .completion-card .stats { margin: 20px 0; font-size: 14px; color: var(--text); line-height: 2; }
+        .completion-card button {
+            margin-top: 12px; padding: 12px 36px; font-size: 16px; font-weight: 600;
+            color: #fff; background: var(--primary);
+            border: none; border-radius: 10px; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .completion-card button:hover { background: var(--primary-dark); }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 900px) {
+            .sidebar { width: 240px; }
+        }
+        @media (max-width: 700px) {
+            .sidebar { width: 100%; max-height: 200px; border-left: none; border-top: 1px solid var(--border); }
+            .game-body { flex-direction: column; }
+            #selection-screen { padding: 24px 16px; }
+            .title-area h1 { font-size: 22px; }
+            .game-info { gap: 10px; }
+            .timer { font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="selection-screen">
+    <div class="title-area">
+        <h1>中国地级行政区填图游戏</h1>
+        <p>选择一个省份开始挑战，或选择全国模式填写所有地级行政区</p>
+    </div>
+    <button class="national-btn" onclick="startNationalGame()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        全国模式
+    </button>
+    <div id="province-list"></div>
+</div>
+
+<div id="game-screen">
+    <div class="game-header">
+        <div class="header-left">
+            <button class="back-btn" onclick="backToSelection()">← 返回</button>
+            <span class="game-title" id="game-title"></span>
+        </div>
+        <div class="game-info">
+            <span class="score" id="score-display">对: <b>0</b> / 剩: <b>0</b> / 总: <b>0</b></span>
+            <span class="timer" id="timer-display">00:00</span>
+        </div>
+    </div>
+    <div class="game-body">
+        <div class="map-area"><div id="map-container"></div></div>
+        <div class="sidebar">
+            <div class="input-area">
+                <div class="input-row">
+                    <input type="text" id="city-input" placeholder="输入地名后按 Enter..." autocomplete="off">
+                    <button class="submit-btn" onclick="handleGuess()">提交</button>
+                </div>
+            </div>
+            <div class="sidebar-header">
+                <span>已找到 <b id="found-count">0</b> 个</span>
+                <button class="giveup-btn" onclick="giveUp()">放弃</button>
+            </div>
+            <div class="found-list" id="found-list"></div>
+            <div class="hint-text">支持简称，如"石家庄"匹配"石家庄市"</div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ Data ============
+const PROVINCES = [
+    { name: '北京', adcode: '110000', region: '华北' },
+    { name: '天津', adcode: '120000', region: '华北' },
+    { name: '河北', adcode: '130000', region: '华北' },
+    { name: '山西', adcode: '140000', region: '华北' },
+    { name: '内蒙古', adcode: '150000', region: '华北' },
+    { name: '辽宁', adcode: '210000', region: '东北' },
+    { name: '吉林', adcode: '220000', region: '东北' },
+    { name: '黑龙江', adcode: '230000', region: '东北' },
+    { name: '上海', adcode: '310000', region: '华东' },
+    { name: '江苏', adcode: '320000', region: '华东' },
+    { name: '浙江', adcode: '330000', region: '华东' },
+    { name: '安徽', adcode: '340000', region: '华东' },
+    { name: '福建', adcode: '350000', region: '华东' },
+    { name: '江西', adcode: '360000', region: '华东' },
+    { name: '山东', adcode: '370000', region: '华东' },
+    { name: '河南', adcode: '410000', region: '华中' },
+    { name: '湖北', adcode: '420000', region: '华中' },
+    { name: '湖南', adcode: '430000', region: '华中' },
+    { name: '广东', adcode: '440000', region: '华南' },
+    { name: '广西', adcode: '450000', region: '华南' },
+    { name: '海南', adcode: '460000', region: '华南' },
+    { name: '重庆', adcode: '500000', region: '西南' },
+    { name: '四川', adcode: '510000', region: '西南' },
+    { name: '贵州', adcode: '520000', region: '西南' },
+    { name: '云南', adcode: '530000', region: '西南' },
+    { name: '西藏', adcode: '540000', region: '西南' },
+    { name: '陕西', adcode: '610000', region: '西北' },
+    { name: '甘肃', adcode: '620000', region: '西北' },
+    { name: '青海', adcode: '630000', region: '西北' },
+    { name: '宁夏', adcode: '640000', region: '西北' },
+    { name: '新疆', adcode: '650000', region: '西北' },
+    { name: '台湾', adcode: '710000', region: '港澳台' },
+    { name: '香港', adcode: '810000', region: '港澳台' },
+    { name: '澳门', adcode: '820000', region: '港澳台' },
+];
+
+const GEO_BASE = 'https://geo.datav.aliyun.com/areas_v3/bound/';
+
+const PALETTE = [
+    '#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6',
+    '#1abc9c','#e67e22','#2980b9','#27ae60','#f1c40f',
+    '#8e44ad','#16a085','#d35400','#c0392b','#7f8c8d',
+    '#2c3e50','#e91e63','#00bcd4','#8bc34a','#ff9800',
+    '#673ab7','#009688','#ff5722','#607d8b','#795548',
+    '#4caf50','#03a9f4','#ffc107','#9c27b0','#ff4081',
+    '#536dfe','#00e5ff','#76ff03'
+];
+
+// ============ State ============
+let state = {
+    mode: null, features: [], foundCount: 0, total: 0,
+    startTime: null, timerInterval: null, chart: null,
+    featureMap: {}, gameTitle: '',
+};
+
+// ============ Selection Screen ============
+function initSelectionScreen() {
+    const container = document.getElementById('province-list');
+    const regions = {};
+    PROVINCES.forEach(p => { (regions[p.region] ??= []).push(p); });
+    const order = ['华北','东北','华东','华中','华南','西南','西北','港澳台'];
+    let html = '';
+    order.forEach(region => {
+        const ps = regions[region];
+        if (!ps) return;
+        html += `<div class="region-group"><h3>${region}</h3><div class="province-grid">`;
+        ps.forEach(p => {
+            html += `<button class="province-btn" onclick="startProvinceGame('${p.adcode}','${p.name}')">${p.name}</button>`;
+        });
+        html += '</div></div>';
+    });
+    container.innerHTML = html;
+}
+
+// ============ GeoJSON ============
+async function loadProvinceData(adcode) {
+    const resp = await fetch(`${GEO_BASE}${adcode}_full.json`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    return data.features || [];
+}
+
+async function loadNationalData(onProgress) {
+    const results = [];
+    let done = 0;
+    const total = PROVINCES.length;
+    const promises = PROVINCES.map(async (p, idx) => {
+        try {
+            const features = await loadProvinceData(p.adcode);
+            done++;
+            onProgress(done, total, p.name);
+            return features.map(f => ({ ...f, _pAdcode: p.adcode, _pName: p.name, _pIdx: idx }));
+        } catch (e) {
+            done++;
+            onProgress(done, total, p.name);
+            console.warn(`Skip ${p.name}:`, e);
+            return [];
+        }
+    });
+    const all = await Promise.all(promises);
+    return all.flat();
+}
+
+// ============ Name Matching ============
+const ETHNIC_RE = /壮族|回族|维吾尔族|维吾尔|藏族|彝族|苗族|傣族|白族|哈尼族|佤族|拉祜族|纳西族|景颇族|蒙古族|蒙古|朝鲜族|朝鲜|哈萨克族|哈萨克|柯尔克孜族|柯尔克孜|羌族|土家族|布依族|侗族|瑶族|黎族|畲族|水族|仡佬族|毛南族|仫佬族|京族|塔吉克族|保安族|东乡族|撒拉族|土族|裕固族|门巴族|珞巴族/g;
+const SUFFIX_RE = /(?:市|地区|自治州|自治县|自治旗|盟|特别行政区|林区|管理区|开发区|新区)$/;
+
+function normalizeName(name) {
+    return name.replace(ETHNIC_RE, '').replace(SUFFIX_RE, '').trim();
+}
+
+function buildAliases(name) {
+    const s = new Set([name]);
+    const n1 = name.replace(SUFFIX_RE, '');
+    if (n1 !== name) s.add(n1);
+    const n2 = name.replace(ETHNIC_RE, '').replace(SUFFIX_RE, '');
+    if (n2 !== name && n2.length > 0) s.add(n2);
+    s.add(normalizeName(name));
+    return [...s].filter(a => a.length > 0);
+}
+
+function buildFeatureMap(features) {
+    const map = {};
+    features.forEach((f, idx) => {
+        for (const alias of buildAliases(f.properties.name)) {
+            const key = alias.toLowerCase();
+            (map[key] ??= []).push(idx);
+        }
+    });
+    return map;
+}
+
+// ============ Loading ============
+function showLoading(text) {
+    const el = document.createElement('div');
+    el.className = 'loading-overlay'; el.id = 'loading';
+    el.innerHTML = `<div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">${text}</div>
+        <div class="loading-progress"><div class="loading-bar" id="loading-bar"></div></div>`;
+    document.body.appendChild(el);
+}
+function updateLoading(text, pct) {
+    const t = document.getElementById('loading-text');
+    const b = document.getElementById('loading-bar');
+    if (t) t.textContent = text;
+    if (b) b.style.width = pct + '%';
+}
+function hideLoading() { document.getElementById('loading')?.remove(); }
+
+// ============ Game Init ============
+async function startProvinceGame(adcode, name) {
+    showLoading(`正在加载${name}...`);
+    try {
+        const raw = await loadProvinceData(adcode);
+        const features = raw.map((f, i) => ({
+            properties: f.properties, geometry: f.geometry, type: f.type,
+            _pAdcode: adcode, _pName: name, _pIdx: i, _found: false,
+        }));
+        initGame('province', features, name);
+    } catch { alert('加载失败，请检查网络'); } finally { hideLoading(); }
+}
+
+async function startNationalGame() {
+    showLoading('正在加载全国地图数据...');
+    try {
+        const raw = await loadNationalData((done, total, pname) => {
+            updateLoading(`正在加载 ${pname} (${done}/${total})`, Math.round(done / total * 100));
+        });
+        const features = raw.map((f, i) => ({
+            properties: f.properties, geometry: f.geometry, type: f.type,
+            _pAdcode: f._pAdcode, _pName: f._pName, _pIdx: f._pIdx, _found: false,
+        }));
+        initGame('national', features, '全国');
+    } catch { alert('加载失败，请检查网络'); } finally { hideLoading(); }
+}
+
+function initGame(mode, features, title) {
+    state = {
+        mode, features, foundCount: 0, total: features.length,
+        startTime: null, timerInterval: null, chart: null,
+        featureMap: buildFeatureMap(features), gameTitle: title,
+    };
+
+    document.getElementById('selection-screen').style.display = 'none';
+    const gs = document.getElementById('game-screen');
+    gs.style.display = 'flex';
+    document.getElementById('game-title').textContent = title;
+    document.getElementById('found-list').innerHTML = '';
+    document.getElementById('found-count').textContent = '0';
+    document.getElementById('city-input').value = '';
+
+    const geojson = {
+        type: 'FeatureCollection',
+        features: features.map(f => ({ type: 'Feature', properties: f.properties, geometry: f.geometry })),
+    };
+
+    if (state.chart) { state.chart.dispose(); state.chart = null; }
+    state.chart = echarts.init(document.getElementById('map-container'), null, { renderer: 'canvas' });
+    echarts.registerMap('gm', geojson);
+    renderMap();
+    updateScore();
+    document.getElementById('city-input').focus();
+    window._rh = () => state.chart?.resize();
+    window.addEventListener('resize', window._rh);
+}
+
+// ============ Map ============
+function hexToHSL(hex) {
+    let r = parseInt(hex.slice(1,3),16)/255;
+    let g = parseInt(hex.slice(3,5),16)/255;
+    let b = parseInt(hex.slice(5,7),16)/255;
+    const max = Math.max(r,g,b), min = Math.min(r,g,b);
+    let h, s, l = (max+min)/2;
+    if (max === min) { h = s = 0; }
+    else {
+        const d = max - min;
+        s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+        if (max === r) h = ((g-b)/d + (g<b?6:0))/6;
+        else if (max === g) h = ((b-r)/d+2)/6;
+        else h = ((r-g)/d+4)/6;
+    }
+    return [Math.round(h*360), Math.round(s*100), Math.round(l*100)];
+}
+
+function getRegionColor(feature) {
+    const base = PALETTE[feature._pIdx % PALETTE.length];
+    const [h, s, l] = hexToHSL(base);
+    // Vary lightness slightly for different features within same province
+    const lAdj = Math.min(65, Math.max(30, l + (feature._pIdx % 3 - 1) * 8));
+    return `hsl(${h}, ${s}%, ${lAdj}%)`;
+}
+
+function renderMap() {
+    if (!state.chart) return;
+    const seriesData = state.features.map(f => {
+        const item = { name: f.properties.name };
+        if (f._found) {
+            item.itemStyle = { areaColor: getRegionColor(f), borderColor: '#fff', borderWidth: 1.5 };
+        }
+        return item;
+    });
+    state.chart.setOption({
+        tooltip: {
+            trigger: 'item',
+            formatter(p) {
+                const f = state.features[p.dataIndex];
+                if (!f) return p.name;
+                if (f._found) return `<b>${p.name}</b><br/><span style="color:#888">${f._pName}</span>`;
+                return `<span style="color:#aaa">${p.name}</span>`;
+            },
+            backgroundColor: 'rgba(255,255,255,0.96)', borderColor: '#e0e0e0',
+            textStyle: { color: '#333', fontSize: 13 }, padding: [6,10],
+        },
+        series: [{
+            type: 'map', map: 'gm', roam: true, zoom: 1.15,
+            label: { show: false },
+            itemStyle: { areaColor: '#dfe6ed', borderColor: '#fff', borderWidth: 1 },
+            emphasis: {
+                label: { show: true, fontSize: 12, color: '#333' },
+                itemStyle: { areaColor: '#ffe0a0', borderColor: '#e48d21', borderWidth: 2 },
+            },
+            select: { disabled: true },
+            data: seriesData,
+        }],
+    }, true);
+}
+
+// ============ Game Logic ============
+function handleGuess() {
+    const input = document.getElementById('city-input');
+    const guess = input.value.trim();
+    input.value = '';
+    if (!guess) return;
+
+    if (!state.startTime) { state.startTime = Date.now(); startTimer(); }
+
+    const indices = state.featureMap[guess.toLowerCase()];
+    if (!indices?.length) { showToast(`"${guess}" 未找到`, 'error'); return; }
+
+    const unfound = indices.filter(i => !state.features[i]._found);
+    if (!unfound.length) { showToast(`"${guess}" 已找到过`, 'error'); return; }
+
+    unfound.forEach(i => {
+        state.features[i]._found = true;
+        state.foundCount++;
+        addFoundItem(state.features[i]);
+    });
+    renderMap();
+    updateScore();
+    showToast(`+${unfound.length} ${unfound.length > 1 ? '个区域' : state.features[unfound[0]].properties.name}`, 'success');
+    if (state.foundCount === state.total) gameComplete();
+}
+
+function addFoundItem(f) {
+    const list = document.getElementById('found-list');
+    const span = document.createElement('span');
+    span.className = 'found-item';
+    const base = PALETTE[f._pIdx % PALETTE.length];
+    span.innerHTML = `<span class="dot" style="background:${base}"></span>${f.properties.name}`;
+    list.prepend(span);
+    document.getElementById('found-count').textContent = state.foundCount;
+}
+
+function updateScore() {
+    const r = state.total - state.foundCount;
+    document.getElementById('score-display').innerHTML =
+        `对: <b>${state.foundCount}</b> / 剩: <b>${r}</b> / 总: <b>${state.total}</b>`;
+}
+
+function giveUp() {
+    if (!confirm('确定放弃？将揭示所有未找到的区域。')) return;
+    stopTimer();
+    state.features.forEach(f => {
+        if (!f._found) { f._found = true; state.foundCount++; }
+    });
+    renderMap();
+    updateScore();
+    showToast('已揭示所有区域', 'error');
+}
+
+// ============ Timer ============
+function startTimer() {
+    state.timerInterval ??= setInterval(() => {
+        const e = Math.floor((Date.now() - state.startTime) / 1000);
+        document.getElementById('timer-display').textContent =
+            `${String(Math.floor(e/60)).padStart(2,'0')}:${String(e%60).padStart(2,'0')}`;
+    }, 500);
+}
+function stopTimer() { clearInterval(state.timerInterval); state.timerInterval = null; }
+function getElapsedText() {
+    if (!state.startTime) return '0秒';
+    const e = Math.floor((Date.now() - state.startTime) / 1000);
+    return e >= 60 ? `${Math.floor(e/60)}分${e%60}秒` : `${e}秒`;
+}
+
+// ============ Complete ============
+function gameComplete() {
+    stopTimer();
+    const el = document.createElement('div');
+    el.className = 'completion-overlay'; el.id = 'completion';
+    el.innerHTML = `<div class="completion-card">
+        <h2>恭喜完成!</h2>
+        <p>你找到了全部 <b>${state.total}</b> 个地级行政区</p>
+        <div class="stats"><p>用时: ${getElapsedText()}</p><p>模式: ${state.gameTitle}</p></div>
+        <button onclick="closeCompletion()">返回选择</button>
+    </div>`;
+    document.body.appendChild(el);
+}
+function closeCompletion() { document.getElementById('completion')?.remove(); backToSelection(); }
+
+// ============ Nav ============
+function backToSelection() {
+    stopTimer();
+    state.chart?.dispose(); state.chart = null;
+    window.removeEventListener('resize', window._rh);
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('selection-screen').style.display = 'block';
+}
+
+// ============ Toast ============
+function showToast(msg, type) {
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.className = `toast ${type}`;
+    requestAnimationFrame(() => el.classList.add('show'));
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+// ============ Events ============
+document.getElementById('city-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleGuess(); });
+initSelectionScreen();
+</script>
+</body>
+</html>
